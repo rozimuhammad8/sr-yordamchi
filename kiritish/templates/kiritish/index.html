@@ -1,92 +1,163 @@
-{% load static %}<!doctype html>
+{% load static %}<!DOCTYPE html>
 <html lang="uz">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SR yordamchi</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SR yordamchi — Mahalla o'zgartirish</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{% static 'kiritish/app.css' %}">
 </head>
 <body>
-<header>
-  <h1>SR yordamchi</h1>
-  <span id="pill" class="pill">tokenlar olinmagan</span>
-  <span class="spacer"></span>
-  <span class="note">sr.ihma.uz da arizani oching va "sr.ihma.uz dan olish" ni bosing</span>
-</header>
+<div class="shell">
 
-<section class="session">
-  <div class="field">
-    <label for="token">Auth token (Bearer)</label>
-    <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="kengaytma qo'yadi yoki qo'lda kiriting">
-  </div>
-  <div class="field">
-    <label for="cf">Cloudflare token (cf_clearance)</label>
-    <input id="cf" type="password" autocomplete="off" spellcheck="false" placeholder="kengaytma qo'yadi yoki qo'lda kiriting">
-  </div>
-  <div class="field narrow">
-    <label for="arizaId">Ariza ID</label>
-    <input id="arizaId" inputmode="numeric" placeholder="masalan 1234567">
-  </div>
-  <input id="ua" type="hidden">
-  <div class="session-actions">
-    <button id="btnOlish" class="primary">sr.ihma.uz dan olish</button>
-    <button id="btnAriza">Arizani yuklash</button>
-    <label class="show"><input type="checkbox" id="showTokens"> ko'rsatish</label>
-  </div>
-</section>
-
-<main>
-  <section class="panel" id="formPanel">
-    <h3><span class="num">1</span>Ariza</h3>
-    <div id="arizaBox"><p class="note">Ariza hali yuklanmagan</p></div>
-
-    <form id="form" class="disabled" autocomplete="off">
-      <h3><span class="num">2</span>Yangi manzil</h3>
-      <div class="grid">
-        <div class="field"><label>Viloyat</label><select id="viloyat"></select></div>
-        <div class="field"><label>Tuman / shahar</label><select id="tuman"></select></div>
-        <div class="field wide"><label>Yangi mahalla</label><select id="mahalla" name="yangi_mahalla_id"></select></div>
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></div>
+      <div class="brand-text"><b>SR yordamchi</b><span>sr.ihma.uz · xonadon mahallasini o'zgartirish</span></div>
+    </div>
+    <div class="topbar-right">
+      <span id="pill" class="pill">tokenlar olinmagan</span>
+      <div class="user-chip" id="userChip" hidden>
+        <div class="avatar" id="userAvatar">?</div>
+        <div class="user-meta"><b id="userName"></b><span>sr.ihma.uz</span></div>
       </div>
-      <p id="sameWarn" class="error"></p>
+    </div>
+  </div>
 
-      <h3><span class="num">3</span>Murojaat</h3>
-      <div class="grid">
-        <div class="field"><label>O'zgartirish sababi</label><select id="sabab" name="sabab_id"></select></div>
-        <div class="field"><label>Xabar beruvchi turi</label><select id="turi" name="xabar_beruvchi_turi_id"></select></div>
-        <div class="field wide"><label>Xabar beruvchi</label><select id="xabarBeruvchi" name="xabar_beruvchi"></select></div>
-        <div class="field wide" id="boshqaBox" hidden><label>Xabar beruvchining PINFL'i</label><input name="boshqa_pinfl" maxlength="14" inputmode="numeric"></div>
-        <div class="field"><label>Pasport seriyasi</label><input name="pasport_seriya" maxlength="2" placeholder="AA" class="upper"></div>
-        <div class="field"><label>Pasport raqami</label><input name="pasport_raqam" maxlength="7" inputmode="numeric" placeholder="1234567"></div>
-        <p id="pasportNote" class="note field wide"></p>
-        <div class="field"><label>Telefon</label><input name="telefon" id="telefon" placeholder="+998 90 123 45 67"></div>
-        <div class="field"><label>Murojaat sanasi</label><input type="date" name="murojaat_sanasi" id="sana"></div>
-        <div class="field wide"><label>Izoh</label><textarea name="izoh" rows="3" placeholder="Masalan: Dalolatnoma bo'yicha fuqaro boshqa mahallada yashaydi"></textarea></div>
+  <div class="page-head">
+    <div>
+      <h2>Mahalla o'zgartirish</h2>
+      <p>sr.ihma.uz da arizani oching, "sr.ihma.uz dan olish" ni bosing va dalolatnoma ma'lumotlarini kiriting</p>
+    </div>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-top"><div class="stat-icon" style="background:var(--accent)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div></div>
+      <div class="stat-value" id="statJami">0</div><div class="stat-label">Jami urinishlar</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-top"><div class="stat-icon" style="background:var(--good)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div></div>
+      <div class="stat-value" id="statOk">0</div><div class="stat-label">Yuborildi</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-top"><div class="stat-icon" style="background:var(--danger)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div></div>
+      <div class="stat-value" id="statXato">0</div><div class="stat-label">Xato bilan</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Sessiya</h3>
+    <p class="sub">Kengaytma tokenlarni va ochiq ariza ID sini sr.ihma.uz dan olib beradi. Kerak bo'lsa qo'lda kiriting.</p>
+    <div class="form-grid session-grid">
+      <div class="field"><label for="token">Auth token (Bearer)</label><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="kengaytma qo'yadi"></div>
+      <div class="field"><label for="cf">Cloudflare token (cf_clearance)</label><input id="cf" type="password" autocomplete="off" spellcheck="false" placeholder="kengaytma qo'yadi"></div>
+      <div class="field"><label for="arizaId">Ariza ID</label><input id="arizaId" type="text" inputmode="numeric" placeholder="masalan 1234567"></div>
+      <input id="ua" type="hidden">
+    </div>
+    <div class="card-actions">
+      <button type="button" class="btn btn-primary" id="btnOlish">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        sr.ihma.uz dan olish
+      </button>
+      <button type="button" class="btn" id="btnAriza">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Arizani yuklash
+      </button>
+      <label class="radio-opt"><input type="checkbox" id="showTokens"> Tokenlarni ko'rsatish</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Ariza</h3>
+    <p class="sub">sr.ihma.uz dagi ma'lumotlar</p>
+    <div id="arizaBox"><div class="note">Ariza hali yuklanmagan</div></div>
+  </div>
+
+  <form id="form" class="form-stack disabled" autocomplete="off">
+    <div class="card">
+      <h3>Yangi manzil</h3>
+      <p class="sub">Dalolatnomada ko'rsatilgan yangi mahalla</p>
+      <div class="form-grid">
+        <div class="field"><label>Viloyat *</label><select id="viloyat"></select></div>
+        <div class="field"><label>Tuman / shahar *</label><select id="tuman"></select></div>
+        <div class="field full"><label>Yangi mahalla *</label><select id="mahalla" name="yangi_mahalla_id"></select></div>
       </div>
+      <div class="inline-error" id="sameWarn"></div>
+    </div>
 
-      <h3><span class="num">4</span>Dalolatnoma (PDF, 1 MB gacha)</h3>
-      <input type="file" name="pdf" id="pdf" accept="application/pdf,.pdf">
-      <div id="pdfInfo"></div>
+    <div class="card">
+      <h3>Murojaat</h3>
+      <p class="sub">Xabar beruvchi pasport bo'yicha tekshiriladi — pasport sr.ihma.uz dan to'ladi</p>
+      <div class="form-grid">
+        <div class="field"><label>O'zgartirish sababi *</label><select id="sabab" name="sabab_id"></select></div>
+        <div class="field"><label>Xabar beruvchi turi *</label><select id="turi" name="xabar_beruvchi_turi_id"></select></div>
+        <div class="field full"><label>Xabar beruvchi *</label><select id="xabarBeruvchi" name="xabar_beruvchi"></select></div>
+        <div class="field full" id="boshqaBox" hidden><label>Xabar beruvchining PINFL'i *</label><input type="text" name="boshqa_pinfl" maxlength="14" inputmode="numeric" placeholder="14 xonali PINFL"></div>
+        <div class="field"><label>Pasport seriyasi *</label><input type="text" name="pasport_seriya" maxlength="2" placeholder="AA" class="upper"></div>
+        <div class="field"><label>Pasport raqami *</label><input type="text" name="pasport_raqam" maxlength="7" inputmode="numeric" placeholder="1234567"></div>
+        <div class="full"><span class="hint-line" id="pasportNote"></span></div>
+        <div class="field"><label>Telefon *</label><input type="text" name="telefon" id="telefon" placeholder="+998 90 123 45 67"></div>
+        <div class="field"><label>Murojaat sanasi *</label><input type="date" name="murojaat_sanasi" id="sana"></div>
+        <div class="field full"><label>Izoh</label><textarea name="izoh" rows="3" placeholder="Masalan: Dalolatnoma bo'yicha fuqaro boshqa mahallada yashaydi"></textarea></div>
+      </div>
+    </div>
 
-      <div class="actions"><button type="submit" class="primary" id="btnSend">Serverga yuborish</button></div>
-      <div id="msg"></div>
-    </form>
-  </section>
+    <div class="card">
+      <h3>Dalolatnoma</h3>
+      <p class="sub">Faqat PDF, 1 MB gacha. Fayl o'qilmaydi — sr.ihma.uz ga yuklanadi.</p>
+      <div class="docx-upload">
+        <button type="button" class="btn" id="pdfBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          PDF tanlash
+        </button>
+        <input type="file" name="pdf" id="pdf" accept="application/pdf,.pdf" hidden>
+        <span class="docx-status" id="pdfInfo">Fayl tanlanmagan</span>
+      </div>
+    </div>
 
-  <aside class="panel">
-    <h2>Yuborilganlar</h2>
-    <ul id="tarix"></ul>
-  </aside>
-</main>
-<dialog id="confirmDlg">
-  <form method="dialog">
-    <h3>Tasdiqlang</h3>
-    <pre id="confirmText"></pre>
-    <div class="actions">
-      <button value="cancel">Bekor qilish</button>
-      <button value="ok" class="primary" id="confirmOk">Ha, yuborish</button>
+    <div class="form-actions">
+      <div class="form-msg" id="msg"></div>
+      <button type="submit" class="btn btn-primary" id="btnSend">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        Serverga yuborish
+      </button>
     </div>
   </form>
-</dialog>
+
+  <div class="card card-flush">
+    <div class="card-head">
+      <div><h3>Yuborilganlar</h3><p>Oxirgi 100 ta urinish</p></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Arizachi</th><th>Eski manzil</th><th>Yangi manzil</th><th>Holat</th><th>sr.ihma.uz ID</th><th>Sana</th><th>PDF</th></tr></thead>
+        <tbody id="tarix"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div class="overlay" id="confirmDlg">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Tasdiqlang</h3>
+      <button type="button" class="modal-close" data-javob="cancel" aria-label="Yopish">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body"><div id="confirmText"></div></div>
+    <div class="modal-foot">
+      <button type="button" class="btn" data-javob="cancel">Bekor qilish</button>
+      <button type="button" class="btn btn-primary" data-javob="ok" id="confirmOk">Ha, yuborish</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
 <script src="{% static 'kiritish/app.js' %}"></script>
 </body>
 </html>

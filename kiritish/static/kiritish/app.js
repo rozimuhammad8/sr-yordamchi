@@ -56,65 +56,104 @@ async function call(url, opts = {}) {
   return data;
 }
 
+let toastTimer = null;
+function toast(text, kind = "") {
+  const t = $("#toast");
+  t.textContent = text;
+  t.className = `toast show ${kind}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = "toast"; }, 3500);
+}
+
+function note(text, kind = "") {
+  return el("div", { class: `note ${kind}` }, text);
+}
+
 // ---------- tokenlar ----------
-function setPill(ok, text) {
-  $("#pill").className = ok ? "pill ok" : "pill err";
+function setPill(kind, text) {
+  $("#pill").className = `pill ${kind}`;
   $("#pill").textContent = text;
 }
 
 function tokenHolati() {
   const token = $("#token").value.trim().replace(/^Bearer\s+/i, "");
-  if (!token) return setPill(false, "Auth token yo'q"), false;
+  if (!token) return setPill("err", "Auth token yo'q"), false;
   const exp = jwtExpires(token);
-  if (exp && exp <= new Date()) return setPill(false, `Token muddati tugagan (${hhmm(exp)}) — sr.ihma.uz ga qayta kiring`), false;
-  setPill(true, `token ${exp ? hhmm(exp) + " gacha" : "kiritilgan"} · Cloudflare: ${$("#cf").value.trim() ? "bor" : "yo'q"}`);
+  if (exp && exp <= new Date()) return setPill("err", `Token muddati tugagan (${hhmm(exp)})`), false;
+  setPill("ok", `Ulangan · ${exp ? hhmm(exp) + " gacha" : "token bor"}${$("#cf").value.trim() ? " · Cloudflare" : ""}`);
   return true;
+}
+
+// sr.ihma.uz dagi foydalanuvchi ismini yuqori panelda ko'rsatadi
+async function profilniKorsat() {
+  try {
+    const p = await call("/api/tekshir/");
+    const name = p.fullName || p.userName || "";
+    $("#userName").textContent = name;
+    $("#userAvatar").textContent = (name.trim()[0] || "?").toUpperCase();
+    $("#userChip").hidden = !name;
+  } catch {
+    $("#userChip").hidden = true;
+  }
 }
 
 let extTimer = null;
 function olish() {
-  setPill(false, "kengaytmadan kutilmoqda…");
+  setPill("wait", "Kengaytmadan kutilmoqda…");
   window.postMessage({ source: "sr-yordamchi-page", type: "olish" }, location.origin);
   clearTimeout(extTimer);
-  extTimer = setTimeout(() => setPill(false, "Kengaytma javob bermadi — u o'rnatilganini tekshiring yoki tokenlarni qo'lda kiriting"), 2500);
+  extTimer = setTimeout(() => {
+    setPill("err", "Kengaytma javob bermadi");
+    toast("Kengaytma javob bermadi — u o'rnatilganini tekshiring yoki tokenlarni qo'lda kiriting", "error");
+  }, 2500);
 }
 
 window.addEventListener("message", (e) => {
   if (e.source !== window || !e.data || e.data.source !== "sr-yordamchi-ext") return;
   clearTimeout(extTimer);
   const d = e.data;
-  if (d.xato) return setPill(false, d.xato);
+  if (d.xato) {
+    setPill("err", "Tokenlar olinmadi");
+    toast(d.xato, "error");
+    return;
+  }
   $("#token").value = d.token || "";
   $("#cf").value = d.cf || "";
   $("#ua").value = d.ua || navigator.userAgent;
   if (d.arizaId) $("#arizaId").value = d.arizaId;
-  if (!tokenHolati()) return;
-  if (!d.token) return;
+  if (!tokenHolati() || !d.token) return;
+  profilniKorsat();
   if (d.arizaId) arizaniYukla();
-  else $("#arizaBox").replaceChildren(el("p", { class: "warn" },
-    "sr.ihma.uz da ochiq ariza topilmadi. Arizani (sr.ihma.uz/applications/…) oching va qayta \"olish\"ni bosing yoki ID ni qo'lda kiriting."));
+  else $("#arizaBox").replaceChildren(note(
+    "sr.ihma.uz da ochiq ariza topilmadi. Arizani (sr.ihma.uz/applications/…) oching va qayta \"sr.ihma.uz dan olish\" ni bosing yoki ID ni qo'lda kiriting.", "warn"));
 });
 
 // ---------- ariza ----------
+function info(label, value, full = false) {
+  return el("div", { class: `info${full ? " full" : ""}` }, el("span", {}, label), el("b", {}, value || "—"));
+}
+
 async function arizaniYukla() {
   const id = $("#arizaId").value.trim();
-  if (!/^\d+$/.test(id)) return $("#arizaBox").replaceChildren(el("p", { class: "error" }, "Ariza ID raqam bo'lishi kerak"));
+  if (!/^\d+$/.test(id)) return $("#arizaBox").replaceChildren(note("Ariza ID raqam bo'lishi kerak", "error"));
   if (!tokenHolati()) return;
   $("#form").classList.add("disabled");
-  $("#msg").replaceChildren();
-  $("#arizaBox").replaceChildren(el("p", { class: "note" }, "Ariza yuklanmoqda…"));
+  formMsg("");
+  $("#arizaBox").replaceChildren(note("Ariza yuklanmoqda…"));
   try {
     const [res, vil] = await Promise.all([call(`/api/ariza/${id}/`), call("/api/viloyatlar/")]);
     state.ariza = res.ariza;
     const a = res.ariza, adr = a.address;
     $("#arizaBox").replaceChildren(
-      el("div", { class: "grid" },
+      el("div", { class: "info-grid" },
         info("Arizachi", `${a.applicantName} · ${a.applicantPinFL}`),
         info("Ariza", `№ ${a.externalNo || a.id} · ${a.status || ""}`),
         info("Hozirgi manzil (tizimda)", `${adr.locality}, ${adr.district}, ${adr.region}`),
         info("Xonadon ID", String(a.householdId)),
-        info("A'zolar", a.members.map((m) => `${m.fullName} (${m.relationship || "—"})`).join("; "), true)),
-      res.oldingi ? el("p", { class: "warn" },
+        el("div", { class: "info full" }, el("span", {}, "Xonadon a'zolari"),
+          el("div", { class: "members" }, a.members.map((m) =>
+            el("span", { class: "member" }, m.fullName, " ", el("em", {}, `· ${m.relationship || "—"}`)))))),
+      res.oldingi ? el("div", { class: "note warn", style: "margin-top:12px" },
         `Diqqat: bu xonadon ${res.oldingi.sana} da allaqachon yuborilgan (o'zgartirish ID ${res.oldingi.ozgartirish_id}).`) : null);
 
     options($("#sabab"), res.royxatlar.sabablar);
@@ -123,18 +162,14 @@ async function arizaniYukla() {
       ...a.members.map((m) => el("option", { value: String(m.personId) }, `${m.fullName} · ${m.pinFL}${m.isApplicant ? " (arizachi)" : ""}`)),
       el("option", { value: "boshqa" }, "Boshqa shaxs (xonadon a'zosi emas)"));
     $("#boshqaBox").hidden = true;
-    $("#pasportNote").textContent = "";
+    pasportNote("", "");
     $("#telefon").value = formatPhone(a.applicantMobileNumber);
     options($("#viloyat"), vil, adr.regionId);
     await tumanlarniYukla(adr.regionId);
     $("#form").classList.remove("disabled");
   } catch (e) {
-    $("#arizaBox").replaceChildren(el("p", { class: "error" }, e.message));
+    $("#arizaBox").replaceChildren(note(e.message, "error"));
   }
-}
-
-function info(label, value, wide = false) {
-  return el("div", { class: `field${wide ? " wide" : ""}` }, el("label", {}, label), el("div", {}, value || "—"));
 }
 
 async function tumanlarniYukla(viloyatId) {
@@ -153,17 +188,42 @@ function birXilmi() {
   $("#sameWarn").textContent = same ? "Yangi mahalla hozirgi mahalla bilan bir xil — sr.ihma.uz buni qabul qilmaydi" : "";
 }
 
-// ---------- yuborish ----------
-// Brauzerning confirm() oynasi o'rniga sahifadagi oyna: Playwright orqali ochilgan brauzer
-// confirm() ni ko'rsatmasdan avtomatik bekor qiladi.
-function tasdiqla(text) {
-  const dlg = $("#confirmDlg");
-  $("#confirmText").textContent = text;
-  dlg.returnValue = "";
-  dlg.showModal();
-  $("#confirmOk").focus();
-  return new Promise((resolve) => dlg.addEventListener("close", () => resolve(dlg.returnValue === "ok"), { once: true }));
+function pasportNote(text, kind) {
+  $("#pasportNote").className = `hint-line ${kind}`;
+  $("#pasportNote").textContent = text;
 }
+
+function formMsg(text, kind = "") {
+  $("#msg").className = `form-msg ${kind}`;
+  $("#msg").textContent = text;
+}
+
+// ---------- yuborish ----------
+// Brauzerning confirm() oynasi o'rniga sahifadagi modal: Playwright orqali ochilgan brauzer
+// confirm() ni ko'rsatmasdan avtomatik bekor qiladi.
+function tasdiqla(content) {
+  const dlg = $("#confirmDlg");
+  $("#confirmText").replaceChildren(content);
+  dlg.classList.add("open");
+  $("#confirmOk").focus();
+  return new Promise((resolve) => {
+    const close = (ok) => {
+      dlg.classList.remove("open");
+      dlg.removeEventListener("click", onClick);
+      document.removeEventListener("keydown", onKey);
+      resolve(ok);
+    };
+    const onClick = (e) => {
+      const b = e.target.closest("[data-javob]");
+      if (b) close(b.dataset.javob === "ok");
+      else if (e.target === dlg) close(false);
+    };
+    const onKey = (e) => { if (e.key === "Escape") close(false); };
+    dlg.addEventListener("click", onClick);
+    document.addEventListener("keydown", onKey);
+  });
+}
+
 async function yubor(e) {
   e.preventDefault();
   const a = state.ariza;
@@ -176,22 +236,28 @@ async function yubor(e) {
   fd.set("yangi_manzil_nomi", $("#mahalla").value ? `${sel("#mahalla").textContent}, ${sel("#tuman").textContent}` : "");
 
   const eski = `${a.address.locality}, ${a.address.district}`;
-  const yangi = fd.get("yangi_manzil_nomi") || "—";
-  if (!(await tasdiqla(`${a.applicantName}\n${eski}  →  ${yangi}\n\nsr.ihma.uz ga yuborilsinmi?`))) return;
+  const yangi = fd.get("yangi_manzil_nomi") || "— tanlanmagan —";
+  const ok = await tasdiqla(el("div", {},
+    el("div", { class: "who" }, a.applicantName),
+    el("div", { class: "route" }, el("div", {}, eski), el("span", {}, "→"), el("div", { class: "to" }, yangi)),
+    el("div", { class: "note warn" }, "Ma'lumotlar sr.ihma.uz ga yuboriladi. Davom etilsinmi?")));
+  if (!ok) return;
 
   $("#btnSend").disabled = true;
-  $("#msg").replaceChildren(el("p", { class: "note" }, "Yuborilmoqda: pasport tekshiruvi, PDF yuklash, o'zgartirishni saqlash…"));
+  formMsg("Yuborilmoqda: pasport tekshiruvi, PDF yuklash, o'zgartirishni saqlash…");
   try {
     const res = await call("/api/yuborish/", { method: "POST", body: fd });
-    $("#msg").replaceChildren(
-      el("p", { class: "ok" }, `Yuborildi. O'zgartirish ID: ${res.ozgartirish_id}`),
-      el("p", { class: "note" }, "Keyingi arizani sr.ihma.uz da oching va \"sr.ihma.uz dan olish\" ni bosing."));
+    formMsg(`Yuborildi. O'zgartirish ID: ${res.ozgartirish_id}. Keyingi arizani sr.ihma.uz da oching.`, "ok");
+    toast(`Yuborildi · ID ${res.ozgartirish_id}`, "success");
     $("#form").reset();
     $("#sana").value = new Date().toLocaleDateString("sv-SE");
-    $("#pdfInfo").replaceChildren();
+    $("#pdfInfo").className = "docx-status";
+    $("#pdfInfo").textContent = "Fayl tanlanmagan";
+    pasportNote("", "");
     $("#form").classList.add("disabled");
   } catch (err) {
-    $("#msg").replaceChildren(el("p", { class: "error" }, err.message));
+    formMsg(err.message, "error");
+    toast("Yuborilmadi — xatoni pastda o'qing", "error");
   } finally {
     $("#btnSend").disabled = false;
     tarixniYukla();
@@ -201,11 +267,20 @@ async function yubor(e) {
 async function tarixniYukla() {
   try {
     const list = await (await fetch("/api/tarix/")).json();
-    $("#tarix").replaceChildren(...(list.length ? list.map((t) => el("li", {},
-      el("div", { class: "name" }, t.fish),
-      el("div", { class: "sub" }, `${t.eski} → ${t.yangi}`),
-      el("div", { class: `sub ${t.holat}` }, `${t.vaqt} · ${t.holat === "yuborildi" ? "ID " + t.ozgartirish_id : "xato: " + t.xato}`),
-    )) : [el("li", { class: "note" }, "Hali hech narsa yuborilmagan")]));
+    $("#statJami").textContent = list.length;
+    $("#statOk").textContent = list.filter((t) => t.holat === "yuborildi").length;
+    $("#statXato").textContent = list.filter((t) => t.holat !== "yuborildi").length;
+    $("#tarix").replaceChildren(...(list.length ? list.map((t) => el("tr", {},
+      el("td", {}, el("strong", {}, t.fish)),
+      el("td", {}, t.eski),
+      el("td", {}, t.yangi),
+      el("td", {}, t.holat === "yuborildi"
+        ? el("span", { class: "pill pill-good" }, "Yuborildi")
+        : [el("span", { class: "pill pill-danger" }, "Xato"), el("span", { class: "xato-matn" }, t.xato)]),
+      el("td", {}, t.ozgartirish_id ? String(t.ozgartirish_id) : el("span", { class: "muted" }, "—")),
+      el("td", { class: "muted" }, t.vaqt),
+      el("td", {}, t.pdf ? el("a", { href: t.pdf, target: "_blank", class: "muted" }, "ochish") : ""),
+    )) : [el("tr", {}, el("td", { colspan: "7", class: "empty" }, "Hali hech narsa yuborilmagan"))]));
   } catch { /* tarix muhim emas */ }
 }
 
@@ -226,23 +301,27 @@ $("#xabarBeruvchi").addEventListener("change", (e) => {
   $("#boshqaBox").hidden = v !== "boshqa";
   // pasport ma'lumoti sr.ihma.uz dagi xonadon a'zolaridan olinadi; o'zgartirish mumkin
   const m = state.ariza && state.ariza.members.find((x) => String(x.personId) === v);
-  const seriya = document.querySelector("[name=pasport_seriya]");
-  const raqam = document.querySelector("[name=pasport_raqam]");
-  seriya.value = m ? m.passportSeries || "" : "";
-  raqam.value = m ? m.passportNo || "" : "";
-  $("#pasportNote").className = m && !(m.passportSeries && m.passportNo) ? "warn" : "note";
-  $("#pasportNote").textContent = !v ? ""
-    : v === "boshqa" ? "Boshqa shaxsning pasport ma'lumotlarini qo'lda kiriting"
-    : m && m.passportSeries && m.passportNo ? "Pasport ma'lumoti sr.ihma.uz dan olindi"
-    : "Bu a'zoning pasport ma'lumoti sr.ihma.uz da yo'q — qo'lda kiriting";
+  document.querySelector("[name=pasport_seriya]").value = m ? m.passportSeries || "" : "";
+  document.querySelector("[name=pasport_raqam]").value = m ? m.passportNo || "" : "";
+  if (!v) pasportNote("", "");
+  else if (v === "boshqa") pasportNote("Boshqa shaxsning pasport ma'lumotlarini qo'lda kiriting", "");
+  else if (m && m.passportSeries && m.passportNo) pasportNote("✓ Pasport ma'lumoti sr.ihma.uz dan olindi", "ok");
+  else pasportNote("Bu a'zoning pasport ma'lumoti sr.ihma.uz da yo'q — qo'lda kiriting", "warn");
 });
 $("#telefon").addEventListener("blur", (e) => { e.target.value = formatPhone(e.target.value); });
+$("#pdfBtn").addEventListener("click", () => $("#pdf").click());
 $("#pdf").addEventListener("change", (e) => {
   const f = e.target.files[0];
-  if (!f) return $("#pdfInfo").replaceChildren();
+  const info = $("#pdfInfo");
+  if (!f) {
+    info.className = "docx-status";
+    info.textContent = "Fayl tanlanmagan";
+    return;
+  }
   const big = f.size > 1024 * 1024;
-  $("#pdfInfo").replaceChildren(el("p", { class: big ? "error" : "note" },
-    `${f.name} · ${(f.size / 1024).toFixed(0)} KB${big ? " — sr.ihma.uz 1 MB gacha qabul qiladi, kichikroq fayl tanlang" : ""}`));
+  info.className = `docx-status ${big ? "error" : "ok"}`;
+  info.replaceChildren(`${f.name} · ${(f.size / 1024).toFixed(0)} KB${big ? " — 1 MB dan katta, kichikroq fayl tanlang" : ""}`,
+    el("a", { href: URL.createObjectURL(f), target: "_blank" }, "ko'rish"));
 });
 $("#form").addEventListener("submit", yubor);
 $("#sana").value = new Date().toLocaleDateString("sv-SE");
