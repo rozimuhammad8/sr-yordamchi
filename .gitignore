@@ -1,0 +1,15 @@
+# Maxfiy va shaxsiy ma'lumotlar — hech qachon yuklanmasin
+.secret_key
+db.sqlite3
+media/
+yozuvlar/
+.brauzer_profil/
+fuqarolar.json
+*.pdf
+*.xlsx
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/

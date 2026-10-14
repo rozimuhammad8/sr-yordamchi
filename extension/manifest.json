@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "SR yordamchi",
+  "version": "0.3.2",
+  "description": "sr.ihma.uz dagi Auth token, Cloudflare token va ochiq ariza ID sini SR yordamchi (localhost:5300) sahifasiga beradi",
+  "permissions": [
+    "tabs",
+    "cookies"
+  ],
+  "host_permissions": [
+    "*://sr.ihma.uz/*",
+    "*://*.ihma.uz/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "SR yordamchini ochish"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://127.0.0.1:5300/*",
+        "http://localhost:5300/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{% load static %}<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SR yordamchi</title>
+<link rel="stylesheet" href="{% static 'kiritish/app.css' %}">
+</head>
+<body>
+<header>
+  <h1>SR yordamchi</h1>
+  <span id="pill" class="pill">tokenlar olinmagan</span>
+  <span class="spacer"></span>
+  <span class="note">sr.ihma.uz da arizani oching va "sr.ihma.uz dan olish" ni bosing</span>
+</header>
+
+<section class="session">
+  <div class="field">
+    <label for="token">Auth token (Bearer)</label>
+    <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="kengaytma qo'yadi yoki qo'lda kiriting">
+  </div>
+  <div class="field">
+    <label for="cf">Cloudflare token (cf_clearance)</label>
+    <input id="cf" type="password" autocomplete="off" spellcheck="false" placeholder="kengaytma qo'yadi yoki qo'lda kiriting">
+  </div>
+  <div class="field narrow">
+    <label for="arizaId">Ariza ID</label>
+    <input id="arizaId" inputmode="numeric" placeholder="masalan 1234567">
+  </div>
+  <input id="ua" type="hidden">
+  <div class="session-actions">
+    <button id="btnOlish" class="primary">sr.ihma.uz dan olish</button>
+    <button id="btnAriza">Arizani yuklash</button>
+    <label class="show"><input type="checkbox" id="showTokens"> ko'rsatish</label>
+  </div>
+</section>
+
+<main>
+  <section class="panel" id="formPanel">
+    <h3><span class="num">1</span>Ariza</h3>
+    <div id="arizaBox"><p class="note">Ariza hali yuklanmagan</p></div>
+
+    <form id="form" class="disabled" autocomplete="off">
+      <h3><span class="num">2</span>Yangi manzil</h3>
+      <div class="grid">
+        <div class="field"><label>Viloyat</label><select id="viloyat"></select></div>
+        <div class="field"><label>Tuman / shahar</label><select id="tuman"></select></div>
+        <div class="field wide"><label>Yangi mahalla</label><select id="mahalla" name="yangi_mahalla_id"></select></div>
+      </div>
+      <p id="sameWarn" class="error"></p>
+
+      <h3><span class="num">3</span>Murojaat</h3>
+      <div class="grid">
+        <div class="field"><label>O'zgartirish sababi</label><select id="sabab" name="sabab_id"></select></div>
+        <div class="field"><label>Xabar beruvchi turi</label><select id="turi" name="xabar_beruvchi_turi_id"></select></div>
+        <div class="field wide"><label>Xabar beruvchi</label><select id="xabarBeruvchi" name="xabar_beruvchi"></select></div>
+        <div class="field wide" id="boshqaBox" hidden><label>Xabar beruvchining PINFL'i</label><input name="boshqa_pinfl" maxlength="14" inputmode="numeric"></div>
+        <div class="field"><label>Pasport seriyasi</label><input name="pasport_seriya" maxlength="2" placeholder="AA" class="upper"></div>
+        <div class="field"><label>Pasport raqami</label><input name="pasport_raqam" maxlength="7" inputmode="numeric" placeholder="1234567"></div>
+        <p id="pasportNote" class="note field wide"></p>
+        <div class="field"><label>Telefon</label><input name="telefon" id="telefon" placeholder="+998 90 123 45 67"></div>
+        <div class="field"><label>Murojaat sanasi</label><input type="date" name="murojaat_sanasi" id="sana"></div>
+        <div class="field wide"><label>Izoh</label><textarea name="izoh" rows="3" placeholder="Masalan: Dalolatnoma bo'yicha fuqaro boshqa mahallada yashaydi"></textarea></div>
+      </div>
+
+      <h3><span class="num">4</span>Dalolatnoma (PDF, 1 MB gacha)</h3>
+      <input type="file" name="pdf" id="pdf" accept="application/pdf,.pdf">
+      <div id="pdfInfo"></div>
+
+      <div class="actions"><button type="submit" class="primary" id="btnSend">Serverga yuborish</button></div>
+      <div id="msg"></div>
+    </form>
+  </section>
+
+  <aside class="panel">
+    <h2>Yuborilganlar</h2>
+    <ul id="tarix"></ul>
+  </aside>
+</main>
+<dialog id="confirmDlg">
+  <form method="dialog">
+    <h3>Tasdiqlang</h3>
+    <pre id="confirmText"></pre>
+    <div class="actions">
+      <button value="cancel">Bekor qilish</button>
+      <button value="ok" class="primary" id="confirmOk">Ha, yuborish</button>
+    </div>
+  </form>
+</dialog>
+<script src="{% static 'kiritish/app.js' %}"></script>
+</body>
+</html>

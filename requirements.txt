@@ -1,0 +1,14 @@
+# SR yordamchi — o'rnatish: pip install -r requirements.txt
+# Python 3.12
+
+# Django ilova (localhost:5300) va sr.ihma.uz API mijozi
+Django==5.2.18
+requests==2.32.5
+tzdata==2026.2              # Windows'da Asia/Tashkent vaqt zonasi uchun
+
+# open_browser.py: Chromium'ni kengaytma bilan ochish va API'ni yozib olish
+# o'rnatgandan keyin bir marta: python -m playwright install chromium
+playwright==1.63.0
+
+# build.py: fuqarolar ro'yxatidan Excel yaratish
+openpyxl==3.1.5
