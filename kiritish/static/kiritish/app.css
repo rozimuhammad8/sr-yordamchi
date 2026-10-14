@@ -222,3 +222,35 @@ tbody tr:hover td{background:var(--main-bg)}
 
 ::-webkit-scrollbar{width:8px;height:8px}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px}
+
+/* Qidiruvli dropdown (combo) — viloyat / tuman / mahalla */
+.combo{position:relative}
+.combo-input{
+  width:100%;padding:11px 40px 11px 13px;border-radius:var(--radius-sm);border:1.5px solid var(--border);
+  font-size:14px;background:var(--main-bg);color:var(--text-1);font-family:inherit;transition:.15s;
+}
+.combo-input:hover{border-color:#cfd6e0}
+.combo.open .combo-input,.combo-input:focus{outline:none;border-color:var(--accent);background:#fff;box-shadow:0 0 0 3px var(--accent-soft)}
+.combo.invalid .combo-input{border-color:var(--danger);box-shadow:0 0 0 3px var(--danger-soft)}
+.combo-arrow{
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);width:30px;height:30px;border:none;background:none;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-1);padding:0;
+}
+.combo-arrow svg{width:12px;height:12px;transition:transform .2s ease}
+.combo.open .combo-arrow svg{transform:rotate(180deg)}
+.combo-panel{
+  position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:50;
+  background:#fff;border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-lg);
+  padding:6px;max-height:260px;overflow-y:auto;display:none;
+}
+.combo.open .combo-panel{display:block;animation:comboIn .15s cubic-bezier(.4,0,.2,1)}
+@keyframes comboIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.combo-opt{padding:9px 11px;border-radius:8px;cursor:pointer}
+.combo-opt b{display:block;font-size:13.5px;font-weight:600;color:var(--text-1)}
+.combo-opt span{display:block;font-size:12px;color:var(--text-2);margin-top:1px}
+.combo-opt.active{background:var(--accent-soft)}
+.combo-opt.selected b{color:var(--accent)}
+.combo-empty{padding:12px;font-size:13px;color:var(--text-3)}
+.combo-empty.loading{color:var(--text-2)}
+.combo.disabled .combo-input{opacity:.6;cursor:not-allowed}
+.field .hint{display:block;font-size:11.5px;color:var(--text-3);margin-top:5px}

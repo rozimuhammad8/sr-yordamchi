@@ -81,9 +81,10 @@
       <h3>Yangi manzil</h3>
       <p class="sub">Dalolatnomada ko'rsatilgan yangi mahalla</p>
       <div class="form-grid">
-        <div class="field"><label>Viloyat *</label><select id="viloyat"></select></div>
-        <div class="field"><label>Tuman / shahar *</label><select id="tuman"></select></div>
-        <div class="field full"><label>Yangi mahalla *</label><select id="mahalla" name="yangi_mahalla_id"></select></div>
+        <div class="field"><label>Viloyat *</label><div class="combo" id="viloyat" data-placeholder="Viloyatni yozing yoki tanlang"></div></div>
+        <div class="field"><label>Tuman / shahar *</label><div class="combo" id="tuman" data-placeholder="Tumanni yozing yoki tanlang"></div></div>
+        <div class="field full"><label>Yangi mahalla *</label><div class="combo" id="mahalla" data-name="yangi_mahalla_id" data-placeholder="Mahallani yozing yoki tanlang"></div>
+          <span class="hint">Lotin yoki kirillda yozish mumkin: "navroz", "навруз"</span></div>
       </div>
       <div class="inline-error" id="sameWarn"></div>
     </div>

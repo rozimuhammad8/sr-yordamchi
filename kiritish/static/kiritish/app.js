@@ -25,6 +25,147 @@ function options(select, items, selected = null, placeholder = "— tanlang —"
   select.value = selected != null ? String(selected) : "";
 }
 
+// ---------- qidiruvli dropdown (viloyat / tuman / mahalla) ----------
+// sr.ihma.uz nomlarni kirillda beradi; qidiruv lotin va kirill farqisiz ishlaydi.
+const LAT = { а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "yo", ж: "j", з: "z", и: "i", й: "y", к: "k",
+  л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "x", ц: "ts", ч: "ch",
+  ш: "sh", щ: "sh", ъ: "ʼ", ы: "i", ь: "", э: "e", ю: "yu", я: "ya", ў: "oʻ", қ: "q", ғ: "gʻ", ҳ: "h" };
+
+function lotin(s) {
+  const low = String(s || "").toLowerCase();
+  let out = "";
+  for (let i = 0; i < low.length; i++) {
+    const c = low[i];
+    // so'z boshida va unlidan keyin "е" -> "ye"
+    out += c === "е" && (i === 0 || /[\s\-(«"'ъьаоуэияюёўе.]/.test(low[i - 1])) ? "ye" : (LAT[c] ?? c);
+  }
+  return out
+    .replace(/(^|[\s\-(«".])([a-zʻʼ])/g, (m, p, ch) => p + ch.toUpperCase())
+    .replace(/\bMfy\b/g, "MFY")
+    .replace(/\b(Tumani|Shahri|Shaxri|Viloyati|Respublikasi)\b/g, (w) => w.toLowerCase());
+}
+
+function qidiruvKaliti(s) {
+  return lotin(s).toLowerCase().replace(/[ʻʼ'‘’`]/g, "").replace(/q/g, "k").replace(/x/g, "h").replace(/\s+/g, " ").trim();
+}
+
+class Combo {
+  constructor(root, onChange) {
+    this.root = root;
+    this.onChange = onChange;
+    this.items = [];
+    this.filtered = [];
+    this.selected = null;
+    this.active = -1;
+    this.loading = false;
+    this.input = el("input", { type: "text", class: "combo-input", autocomplete: "off", spellcheck: "false",
+      placeholder: root.dataset.placeholder || "" });
+    this.hidden = root.dataset.name ? el("input", { type: "hidden", name: root.dataset.name }) : null;
+    this.panel = el("div", { class: "combo-panel" });
+    const arrow = el("button", { type: "button", class: "combo-arrow", tabindex: "-1", "aria-label": "Ro'yxatni ochish" });
+    arrow.innerHTML = '<svg viewBox="0 0 12 8"><path d="M0 0h12L6 8z" fill="currentColor"/></svg>';
+    root.append(this.input, arrow, this.panel);
+    if (this.hidden) root.append(this.hidden);
+
+    this.input.addEventListener("focus", () => this.open(""));
+    this.input.addEventListener("input", () => { root.classList.remove("invalid"); this.open(this.input.value); });
+    this.input.addEventListener("keydown", (e) => this.key(e));
+    this.input.addEventListener("blur", () => this.commit());
+    arrow.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      if (root.classList.contains("open")) this.close();
+      else { this.input.focus(); this.open(""); }
+    });
+    this.panel.addEventListener("mousedown", (e) => e.preventDefault()); // variant bosilganda fokus inputda qoladi
+  }
+
+  get value() { return this.selected ? this.selected.id : null; }
+  get text() { return this.selected ? this.selected.name : ""; }
+
+  setItems(items, selectedId = null) {
+    this.loading = false;
+    this.items = items.map((it) => ({ ...it, sub: lotin(it.name), key: qidiruvKaliti(it.name) }));
+    this.select(this.items.find((i) => i.id === selectedId) || null, false);
+    if (this.root.classList.contains("open")) this.open(this.input.value === this.text ? "" : this.input.value);
+  }
+
+  setLoading() {
+    this.setItems([]);
+    this.loading = true;
+  }
+
+  select(item, fire = true) {
+    const changed = (item ? item.id : null) !== this.value;
+    this.selected = item;
+    this.input.value = item ? item.name : "";
+    if (this.hidden) this.hidden.value = item ? item.id : "";
+    this.root.classList.remove("invalid");
+    if (fire && changed && this.onChange) this.onChange(this.value);
+  }
+
+  open(query) {
+    const k = qidiruvKaliti(query);
+    this.filtered = k ? this.items.filter((i) => i.key.includes(k)) : this.items;
+    this.active = this.filtered.indexOf(this.selected);
+    if (this.active < 0 && k && this.filtered.length) this.active = 0;
+    this.render();
+    this.root.classList.add("open");
+  }
+
+  close() { this.root.classList.remove("open"); }
+
+  render() {
+    if (this.loading) return this.panel.replaceChildren(el("div", { class: "combo-empty loading" }, "Yuklanmoqda…"));
+    if (!this.filtered.length) {
+      return this.panel.replaceChildren(el("div", { class: "combo-empty" },
+        this.items.length ? "Hech narsa topilmadi" : "Avval yuqoridagi maydonni tanlang"));
+    }
+    this.panel.replaceChildren(...this.filtered.map((it, idx) => {
+      const o = el("div", { class: `combo-opt${idx === this.active ? " active" : ""}${it === this.selected ? " selected" : ""}` },
+        el("b", {}, it.name), it.sub && it.sub !== it.name ? el("span", {}, it.sub) : null);
+      o.addEventListener("click", () => { this.select(it); this.close(); });
+      return o;
+    }));
+    const a = this.panel.children[this.active];
+    if (a) a.scrollIntoView({ block: "nearest" });
+  }
+
+  key(e) {
+    const isOpen = this.root.classList.contains("open");
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!isOpen) return this.open("");
+      const n = this.filtered.length;
+      if (!n) return;
+      this.active = (this.active + (e.key === "ArrowDown" ? 1 : -1) + n) % n;
+      this.render();
+    } else if (e.key === "Enter") {
+      e.preventDefault(); // formani yubormasin
+      if (isOpen && this.filtered[this.active]) {
+        this.select(this.filtered[this.active]);
+        this.close();
+      }
+    } else if (e.key === "Escape") {
+      this.close();
+      this.input.value = this.text;
+    }
+  }
+
+  // fokus ketganda: yozilgan matn bitta variantga mos kelsa — tanlaydi, aks holda oldingi tanlovga qaytadi
+  commit() {
+    this.close();
+    const k = qidiruvKaliti(this.input.value);
+    if (!k) { if (this.selected) this.select(null); return; }
+    if (this.selected && this.selected.key === k) { this.input.value = this.text; return; }
+    const exact = this.items.find((i) => i.key === k);
+    const matches = this.items.filter((i) => i.key.includes(k));
+    const pick = exact || (matches.length === 1 ? matches[0] : null);
+    if (pick) return this.select(pick);
+    this.input.value = this.text;
+    if (!this.selected) this.root.classList.add("invalid");
+  }
+}
+
 function formatPhone(raw) {
   const d = String(raw || "").replace(/\D/g, "");
   const n = d.length === 9 ? "998" + d : d;
@@ -156,7 +297,7 @@ async function arizaniYukla() {
           el("div", { class: "members" }, a.members.map((m) =>
             el("span", { class: "member" }, m.fullName, " ", el("em", {}, `· ${m.relationship || "—"}`)))))),
       res.oldingi ? el("div", { class: "note warn", style: "margin-top:12px" },
-        `Diqqat: bu xonadon ${res.oldingi.sana} da allaqachon yuborilgan (o'zgartirish ID ${res.oldingi.ozgartirish_id}).`) : null);
+        `Diqqat: bu xonadon ${res.oldingi.sana} da allaqachon yuborilgan (o'zgartirish ID ${res.oldingi.ozgartirish_id}).`) : "");
 
     options($("#sabab"), res.royxatlar.sabablar);
     options($("#turi"), res.royxatlar.xabar_beruvchi_turlari);
@@ -168,7 +309,7 @@ async function arizaniYukla() {
     $("#telefon").value = formatPhone(a.applicantMobileNumber) || DEFAULT_PHONE;
     document.querySelector("[name=izoh]").value = "";
     state.autoIzoh = "";
-    options($("#viloyat"), vil, adr.regionId);
+    C.viloyat.setItems(vil, adr.regionId);
     await tumanlarniYukla(adr.regionId);
     $("#form").classList.remove("disabled");
   } catch (e) {
@@ -177,18 +318,20 @@ async function arizaniYukla() {
 }
 
 async function tumanlarniYukla(viloyatId) {
-  options($("#tuman"), viloyatId ? await call(`/api/tumanlar/${viloyatId}/`) : []);
-  options($("#mahalla"), []);
+  C.tuman.setLoading();
+  C.mahalla.setItems([]);
+  C.tuman.setItems(viloyatId ? await call(`/api/tumanlar/${viloyatId}/`) : []);
   birXilmi();
 }
 
 async function mahallalarniYukla(tumanId) {
-  options($("#mahalla"), tumanId ? await call(`/api/mahallalar/${tumanId}/`) : []);
+  C.mahalla.setLoading();
+  C.mahalla.setItems(tumanId ? await call(`/api/mahallalar/${tumanId}/`) : []);
   birXilmi();
 }
 
 function birXilmi() {
-  const same = state.ariza && $("#mahalla").value && +$("#mahalla").value === state.ariza.address.localityId;
+  const same = state.ariza && C.mahalla.value && C.mahalla.value === state.ariza.address.localityId;
   $("#sameWarn").textContent = same ? "Yangi mahalla hozirgi mahalla bilan bir xil — sr.ihma.uz buni qabul qilmaydi" : "";
   izohniYangila();
 }
@@ -199,7 +342,7 @@ function izohniYangila() {
   const a = state.ariza;
   if (!a) return;
   const adr = a.address;
-  const v = +$("#viloyat").value || null, t = +$("#tuman").value || null, m = +$("#mahalla").value || null;
+  const v = C.viloyat.value, t = C.tuman.value, m = C.mahalla.value;
   let text = "";
   if (v && v !== adr.regionId) text = "Fuqaro boshqa viloyatga ko'chib ketgan";
   else if (t && t !== adr.districtId) text = "Fuqaro boshqa tumanga ko'chib ketgan";
@@ -254,7 +397,7 @@ async function yubor(e) {
   fd.set("ariza_id", a.id);
   fd.set("telefon", formatPhone(fd.get("telefon")));
   fd.set("sabab_nomi", $("#sabab").value ? sel("#sabab").textContent : "");
-  fd.set("yangi_manzil_nomi", $("#mahalla").value ? `${sel("#mahalla").textContent}, ${sel("#tuman").textContent}` : "");
+  fd.set("yangi_manzil_nomi", C.mahalla.value ? `${C.mahalla.text}, ${C.tuman.text}` : "");
 
   const eski = `${a.address.locality}, ${a.address.district}`;
   const yangi = fd.get("yangi_manzil_nomi") || "— tanlanmagan —";
@@ -271,6 +414,7 @@ async function yubor(e) {
     formMsg(`Yuborildi. O'zgartirish ID: ${res.ozgartirish_id}. Keyingi arizani sr.ihma.uz da oching.`, "ok");
     toast(`Yuborildi · ID ${res.ozgartirish_id}`, "success");
     $("#form").reset();
+    for (const c of Object.values(C)) c.setItems([]);
     $("#sana").value = new Date().toLocaleDateString("sv-SE");
     $("#pdfInfo").className = "docx-status";
     $("#pdfInfo").textContent = "Fayl tanlanmagan";
@@ -314,9 +458,11 @@ $("#cf").addEventListener("input", tokenHolati);
 $("#showTokens").addEventListener("change", (e) => {
   for (const id of ["#token", "#cf"]) $(id).type = e.target.checked ? "text" : "password";
 });
-$("#viloyat").addEventListener("change", (e) => tumanlarniYukla(+e.target.value || null).catch((x) => { $("#sameWarn").textContent = x.message; }));
-$("#tuman").addEventListener("change", (e) => mahallalarniYukla(+e.target.value || null).catch((x) => { $("#sameWarn").textContent = x.message; }));
-$("#mahalla").addEventListener("change", birXilmi);
+const C = {
+  viloyat: new Combo($("#viloyat"), (id) => tumanlarniYukla(id).catch((x) => { $("#sameWarn").textContent = x.message; })),
+  tuman: new Combo($("#tuman"), (id) => mahallalarniYukla(id).catch((x) => { $("#sameWarn").textContent = x.message; })),
+  mahalla: new Combo($("#mahalla"), birXilmi),
+};
 $("#xabarBeruvchi").addEventListener("change", (e) => {
   const v = e.target.value;
   $("#boshqaBox").hidden = v !== "boshqa";
