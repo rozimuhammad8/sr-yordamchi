@@ -3,7 +3,9 @@
 "use strict";
 
 const $ = (sel) => document.querySelector(sel);
-const state = { ariza: null };
+const state = { ariza: null, autoIzoh: "" };
+// sr.ihma.uz da arizachining telefoni bo'lmasa qo'yiladigan qiymat
+const DEFAULT_PHONE = "+998 90 123 45 67";
 
 // ---------- yordamchilar ----------
 function el(tag, props = {}, ...children) {
@@ -163,7 +165,9 @@ async function arizaniYukla() {
       el("option", { value: "boshqa" }, "Boshqa shaxs (xonadon a'zosi emas)"));
     $("#boshqaBox").hidden = true;
     pasportNote("", "");
-    $("#telefon").value = formatPhone(a.applicantMobileNumber);
+    $("#telefon").value = formatPhone(a.applicantMobileNumber) || DEFAULT_PHONE;
+    document.querySelector("[name=izoh]").value = "";
+    state.autoIzoh = "";
     options($("#viloyat"), vil, adr.regionId);
     await tumanlarniYukla(adr.regionId);
     $("#form").classList.remove("disabled");
@@ -186,6 +190,23 @@ async function mahallalarniYukla(tumanId) {
 function birXilmi() {
   const same = state.ariza && $("#mahalla").value && +$("#mahalla").value === state.ariza.address.localityId;
   $("#sameWarn").textContent = same ? "Yangi mahalla hozirgi mahalla bilan bir xil — sr.ihma.uz buni qabul qilmaydi" : "";
+  izohniYangila();
+}
+
+// Izohni yangi manzil hozirgisidan qaysi darajada farq qilishiga qarab to'ldiradi.
+// Foydalanuvchi izohni o'zi o'zgartirgan bo'lsa, uning matniga tegilmaydi.
+function izohniYangila() {
+  const a = state.ariza;
+  if (!a) return;
+  const adr = a.address;
+  const v = +$("#viloyat").value || null, t = +$("#tuman").value || null, m = +$("#mahalla").value || null;
+  let text = "";
+  if (v && v !== adr.regionId) text = "Fuqaro boshqa viloyatga ko'chib ketgan";
+  else if (t && t !== adr.districtId) text = "Fuqaro boshqa tumanga ko'chib ketgan";
+  else if (m && m !== adr.localityId) text = "Fuqaro boshqa mahallaga ko'chib ketgan";
+  const izoh = document.querySelector("[name=izoh]");
+  if (!izoh.value.trim() || izoh.value === state.autoIzoh) izoh.value = text;
+  state.autoIzoh = text;
 }
 
 function pasportNote(text, kind) {
