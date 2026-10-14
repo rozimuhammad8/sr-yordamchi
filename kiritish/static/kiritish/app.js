@@ -45,8 +45,17 @@ function lotin(s) {
     .replace(/\b(Tumani|Shahri|Shaxri|Viloyati|Respublikasi)\b/g, (w) => w.toLowerCase());
 }
 
+// Qidiruv kaliti: kirill ham, lotin ham bir xil kalitga keladi va keng tarqalgan
+// imlo farqlari tenglashtiriladi (navruz = Навро'з, dongqishloq = Дўнқишлоқ, kurgontepa = Қўрғонтепа).
 function qidiruvKaliti(s) {
-  return lotin(s).toLowerCase().replace(/[ʻʼ'‘’`]/g, "").replace(/q/g, "k").replace(/x/g, "h").replace(/\s+/g, " ").trim();
+  return lotin(s).toLowerCase()
+    .replace(/[ʻʼ'‘’`´]/g, "")          // o' g' -> o g
+    .replace(/ye/g, "e").replace(/yo/g, "o").replace(/yu/g, "u").replace(/ya/g, "a")
+    .replace(/q/g, "k").replace(/x/g, "h").replace(/ts/g, "s").replace(/dj/g, "j")
+    .replace(/u/g, "o")                  // ў (o') ko'pincha "u" deb yoziladi
+    .replace(/ng/g, "n")                 // нг / нқ
+    .replace(/(.)\1+/g, "$1")            // takror harflar: Ҳаққул = haqul
+    .replace(/\s+/g, " ").trim();
 }
 
 class Combo {
