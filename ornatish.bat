@@ -18,6 +18,19 @@ if errorlevel 1 (
     exit /b 1
 )
 
+echo Tesseract OCR (dalolatnomalarni o'qish uchun) o'rnatilmoqda...
+if not exist "C:\Program Files\Tesseract-OCR\tesseract.exe" (
+    winget install --id UB-Mannheim.TesseractOCR -e --silent --accept-package-agreements --accept-source-agreements
+)
+if not exist tessdata mkdir tessdata
+copy /y "C:\Program Files\Tesseract-OCR\tessdata\osd.traineddata" tessdata\ >nul 2>nul
+for %%L in (uzb_cyrl rus) do (
+    if not exist tessdata\%%L.traineddata (
+        echo   %%L tili yuklanmoqda...
+        curl -sSL -C - --retry 5 -o tessdata\%%L.traineddata https://github.com/tesseract-ocr/tessdata_best/raw/main/%%L.traineddata
+    )
+)
+
 echo Ma'lumotlar bazasi tayyorlanmoqda...
 python manage.py migrate
 echo.

@@ -27,6 +27,7 @@ COLUMNS = [
     ("№", 5),
     ("F.I.Sh", 36),
     ("PINFL (JShShIR)", 17),
+    ("Pasport", 12),
     ("Jinsi", 8),
     ("Tug'ilgan sana", 13),
     ("Hozirgi mahallasi (ro'yxatdagi)", 30),
@@ -139,7 +140,7 @@ def write_excel(path, records):
     ws.row_dimensions[1].height = 32
 
     for i, r in enumerate(records, 1):
-        row = [i, r["fish"], r["pinfl"], r["jinsi"], r["tugilgan_sana"], r["hozirgi_mahalla"],
+        row = [i, r["fish"], r["pinfl"], r.get("pasport", ""), r["jinsi"], r["tugilgan_sana"], r["hozirgi_mahalla"],
                r["yangi_mahalla"], r["yangi_manzil"], r["telefon"], r["dalolatnoma_sanasi"],
                r["izoh"], r["muammo"], r["pdf_joyi"]]
         for col, value in enumerate(row, 1):

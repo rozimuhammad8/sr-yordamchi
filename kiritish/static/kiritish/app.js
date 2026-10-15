@@ -3,7 +3,7 @@
 "use strict";
 
 const $ = (sel) => document.querySelector(sel);
-const state = { ariza: null, autoIzoh: "" };
+const state = { ariza: null, autoIzoh: "", xabar: null, turi: null };
 // sr.ihma.uz da arizachining telefoni bo'lmasa qo'yiladigan qiymat
 const DEFAULT_PHONE = "+998 90 123 45 67";
 
@@ -291,6 +291,7 @@ async function arizaniYukla() {
   if (!tokenHolati()) return;
   $("#form").classList.add("disabled");
   formMsg("");
+  xabarniTozala();
   $("#arizaBox").replaceChildren(note("Ariza yuklanmoqda…"));
   try {
     const [res, vil] = await Promise.all([call(`/api/ariza/${id}/`), call("/api/viloyatlar/")]);
@@ -309,18 +310,36 @@ async function arizaniYukla() {
         `Diqqat: bu xonadon ${res.oldingi.sana} da allaqachon yuborilgan (o'zgartirish ID ${res.oldingi.ozgartirish_id}).`) : "");
 
     options($("#sabab"), res.royxatlar.sabablar);
-    options($("#turi"), res.royxatlar.xabar_beruvchi_turlari);
-    $("#xabarBeruvchi").replaceChildren(el("option", { value: "" }, "— tanlang —"),
-      ...a.members.map((m) => el("option", { value: String(m.personId) }, `${m.fullName} · ${m.pinFL}${m.isApplicant ? " (arizachi)" : ""}`)),
-      el("option", { value: "boshqa" }, "Boshqa shaxs (xonadon a'zosi emas)"));
-    $("#boshqaBox").hidden = true;
-    pasportNote("", "");
+    xabarBeruvchiniQoy(a, res.royxatlar.xabar_beruvchi_turlari);
     $("#telefon").value = formatPhone(a.applicantMobileNumber) || DEFAULT_PHONE;
     document.querySelector("[name=izoh]").value = "";
     state.autoIzoh = "";
     C.viloyat.setItems(vil, adr.regionId);
     await tumanlarniYukla(adr.regionId);
     $("#form").classList.remove("disabled");
+  } catch (e) {
+    $("#arizaBox").replaceChildren(note(e.message, "error"));
+  }
+}
+
+// Arizachi PINFL'i bo'yicha: bitta ariza topilsa — yuklanadi, bir nechta bo'lsa — qaysi birini yuklash so'raladi
+async function pinflBoyichaYukla() {
+  const pinfl = $("#pinflQidir").value.trim();
+  if (!/^\d{14}$/.test(pinfl)) return $("#arizaBox").replaceChildren(note("PINFL 14 ta raqam bo'lishi kerak", "error"));
+  if (!tokenHolati()) return;
+  $("#form").classList.add("disabled");
+  $("#arizaBox").replaceChildren(note("Arizalar qidirilmoqda…"));
+  try {
+    const list = await call(`/api/ariza-qidir/?pinfl=${pinfl}`);
+    if (!list.length) return $("#arizaBox").replaceChildren(note("Bu PINFL bo'yicha ariza topilmadi", "warn"));
+    const tanla = (id) => { $("#arizaId").value = id; arizaniYukla(); };
+    if (list.length === 1) return tanla(list[0].id);
+    $("#arizaBox").replaceChildren(
+      note(`Bu PINFL bo'yicha ${list.length} ta ariza topildi — qaysi birini yuklaymiz?`, "warn"),
+      el("div", { class: "ariza-tanlov" }, list.map((x) =>
+        el("button", { type: "button", class: "btn", onclick: () => tanla(x.id) },
+          el("span", {}, el("b", {}, `№ ${x.raqam || x.id}`), ` · ${x.arizachi || "—"}`),
+          el("span", { class: "muted" }, [x.holat, x.sana].filter(Boolean).join(" · "))))));
   } catch (e) {
     $("#arizaBox").replaceChildren(note(e.message, "error"));
   }
@@ -345,25 +364,59 @@ function birXilmi() {
   izohniYangila();
 }
 
-// Izohni yangi manzil hozirgisidan qaysi darajada farq qilishiga qarab to'ldiradi.
+// "Чорвадор МФЙ" -> "Fuqaro Chorvador MFYga ko'chib ketgan" (ommaviy.js ham ishlatadi)
+function kochishIzohi(mahalla) {
+  const s = lotin(mahalla).trim();
+  const m = s.match(/^(.*?)\s+(MFY|QFY|KFY|OFY)\.?$/i);
+  const [nom, tur] = m ? [m[1], m[2].toUpperCase()] : [s, "MFY"];
+  return nom ? `Fuqaro ${nom} ${tur}ga ko'chib ketgan` : "";
+}
+
+// Izohni tanlangan yangi mahalla bo'yicha to'ldiradi.
 // Foydalanuvchi izohni o'zi o'zgartirgan bo'lsa, uning matniga tegilmaydi.
 function izohniYangila() {
   const a = state.ariza;
   if (!a) return;
-  const adr = a.address;
-  const v = C.viloyat.value, t = C.tuman.value, m = C.mahalla.value;
-  let text = "";
-  if (v && v !== adr.regionId) text = "Fuqaro boshqa viloyatga ko'chib ketgan";
-  else if (t && t !== adr.districtId) text = "Fuqaro boshqa tumanga ko'chib ketgan";
-  else if (m && m !== adr.localityId) text = "Fuqaro boshqa mahallaga ko'chib ketgan";
+  const m = C.mahalla.value;
+  const text = m && m !== a.address.localityId ? kochishIzohi(C.mahalla.text) : "";
   const izoh = document.querySelector("[name=izoh]");
   if (!izoh.value.trim() || izoh.value === state.autoIzoh) izoh.value = text;
   state.autoIzoh = text;
 }
 
-function pasportNote(text, kind) {
-  $("#pasportNote").className = `hint-line ${kind}`;
-  $("#pasportNote").textContent = text;
+// Xabar beruvchi turi avtomatik: ommaviy bo'limda oxirgi tanlangani, bo'lmasa nomida "o'zi"/"arizachi" bor
+// variant, bo'lmasa birinchisi (ommaviy.js ham ishlatadi)
+function avtoTuri(items) {
+  if (!items.length) return null;
+  let saqlangan = "";
+  try { saqlangan = localStorage.getItem("om.turi") || ""; } catch { /* muhim emas */ }
+  const s = items.find((x) => String(x.id) === saqlangan);
+  const nom = items.find((x) => /\b(ozi|arizachi|shahsan)/.test(qidiruvKaliti(x.name)));
+  return (s || nom || items[0]).id;
+}
+
+// Xabar beruvchi — arizachi; pasporti sr.ihma.uz dan. Pasport yo'q bo'lsagina maydonlar ko'rsatiladi.
+function xabarBeruvchiniQoy(a, turlar) {
+  const m = a.members.find((x) => x.isApplicant);
+  state.xabar = m || null;
+  state.turi = avtoTuri(turlar);
+  const turiNomi = (turlar.find((x) => x.id === state.turi) || {}).name || "—";
+  const seriya = (m && m.passportSeries) || "", raqam = (m && m.passportNo) || "";
+  document.querySelector("[name=pasport_seriya]").value = seriya;
+  document.querySelector("[name=pasport_raqam]").value = raqam;
+  const pasportYoq = !!m && !(seriya && raqam);
+  $("#pasportBox1").hidden = $("#pasportBox2").hidden = !pasportYoq;
+  $("#xabarInfo").className = `note${!m || pasportYoq ? " warn" : ""}`;
+  $("#xabarInfo").textContent = !m ? "Arizada arizachi topilmadi — bu arizani yuborib bo'lmaydi"
+    : `Xabar beruvchi: ${m.fullName} · ${turiNomi} · ` +
+      (pasportYoq ? "pasporti sr.ihma.uz da yo'q — pastda qo'lda kiriting" : `pasport ${seriya} ${raqam}`);
+}
+
+function xabarniTozala() {
+  state.xabar = state.turi = null;
+  $("#pasportBox1").hidden = $("#pasportBox2").hidden = true;
+  $("#xabarInfo").className = "note";
+  $("#xabarInfo").textContent = "Ariza yuklanganda xabar beruvchi avtomatik tanlanadi";
 }
 
 function formMsg(text, kind = "") {
@@ -401,9 +454,13 @@ async function yubor(e) {
   e.preventDefault();
   const a = state.ariza;
   if (!a || !tokenHolati()) return;
+  if (!state.xabar) return formMsg("Arizada arizachi topilmadi — xabar beruvchini aniqlab bo'lmadi", "error");
   const sel = (id) => $(id).selectedOptions[0];
   const fd = new FormData($("#form"));
   fd.set("ariza_id", a.id);
+  fd.set("xabar_beruvchi", String(state.xabar.personId));
+  fd.set("xabar_beruvchi_turi_id", state.turi != null ? String(state.turi) : "");
+  fd.set("murojaat_sanasi", new Date().toLocaleDateString("sv-SE"));
   fd.set("telefon", formatPhone(fd.get("telefon")));
   fd.set("sabab_nomi", $("#sabab").value ? sel("#sabab").textContent : "");
   fd.set("yangi_manzil_nomi", C.mahalla.value ? `${C.mahalla.text}, ${C.tuman.text}` : "");
@@ -424,10 +481,9 @@ async function yubor(e) {
     toast(`Yuborildi · ID ${res.ozgartirish_id}`, "success");
     $("#form").reset();
     for (const c of Object.values(C)) c.setItems([]);
-    $("#sana").value = new Date().toLocaleDateString("sv-SE");
     $("#pdfInfo").className = "docx-status";
     $("#pdfInfo").textContent = "Fayl tanlanmagan";
-    pasportNote("", "");
+    xabarniTozala();
     $("#form").classList.add("disabled");
   } catch (err) {
     formMsg(err.message, "error");
@@ -462,6 +518,8 @@ async function tarixniYukla() {
 $("#btnOlish").addEventListener("click", olish);
 $("#btnAriza").addEventListener("click", arizaniYukla);
 $("#arizaId").addEventListener("keydown", (e) => e.key === "Enter" && arizaniYukla());
+$("#btnPinfl").addEventListener("click", pinflBoyichaYukla);
+$("#pinflQidir").addEventListener("keydown", (e) => e.key === "Enter" && pinflBoyichaYukla());
 $("#token").addEventListener("input", tokenHolati);
 $("#cf").addEventListener("input", tokenHolati);
 $("#showTokens").addEventListener("change", (e) => {
@@ -472,18 +530,6 @@ const C = {
   tuman: new Combo($("#tuman"), (id) => mahallalarniYukla(id).catch((x) => { $("#sameWarn").textContent = x.message; })),
   mahalla: new Combo($("#mahalla"), birXilmi),
 };
-$("#xabarBeruvchi").addEventListener("change", (e) => {
-  const v = e.target.value;
-  $("#boshqaBox").hidden = v !== "boshqa";
-  // pasport ma'lumoti sr.ihma.uz dagi xonadon a'zolaridan olinadi; o'zgartirish mumkin
-  const m = state.ariza && state.ariza.members.find((x) => String(x.personId) === v);
-  document.querySelector("[name=pasport_seriya]").value = m ? m.passportSeries || "" : "";
-  document.querySelector("[name=pasport_raqam]").value = m ? m.passportNo || "" : "";
-  if (!v) pasportNote("", "");
-  else if (v === "boshqa") pasportNote("Boshqa shaxsning pasport ma'lumotlarini qo'lda kiriting", "");
-  else if (m && m.passportSeries && m.passportNo) pasportNote("✓ Pasport ma'lumoti sr.ihma.uz dan olindi", "ok");
-  else pasportNote("Bu a'zoning pasport ma'lumoti sr.ihma.uz da yo'q — qo'lda kiriting", "warn");
-});
 $("#telefon").addEventListener("blur", (e) => { e.target.value = formatPhone(e.target.value); });
 $("#pdfBtn").addEventListener("click", () => $("#pdf").click());
 $("#pdf").addEventListener("change", (e) => {
@@ -500,7 +546,6 @@ $("#pdf").addEventListener("change", (e) => {
     el("a", { href: URL.createObjectURL(f), target: "_blank" }, "ko'rish"));
 });
 $("#form").addEventListener("submit", yubor);
-$("#sana").value = new Date().toLocaleDateString("sv-SE");
 
 tarixniYukla();
 olish(); // sahifa ochilganda kengaytmadan tokenlarni so'raymiz

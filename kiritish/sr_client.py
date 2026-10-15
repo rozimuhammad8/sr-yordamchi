@@ -2,6 +2,7 @@
 
 API'lar 2026-10-15 dagi yozuv (yozuvlar/api_*.jsonl) va sayt JS kodidan aniqlangan.
 Xonadon manzilini (mahallasini) o'zgartirish jarayoni, saytning o'zi qanday qilsa xuddi shunday:
+    POST /Application/GetList {page, pageSize, search} -> arizalar ro'yxati (PINFL bo'yicha qidiruv)
     GET  /Application/Get?id=                  -> householdId, a'zolar, hozirgi manzil
     GET  /Household/GetChangeSelectLists        -> sabablar, xabar beruvchi turlari
     POST /Change/ResolvePersonByPassport        -> xabar beruvchining personId si (pasport bo'yicha tekshiruv)
@@ -77,6 +78,9 @@ class SrClient:
 
     def application(self, application_id):
         return self._call("GET", "/Application/Get", params={"id": application_id})
+
+    def search_applications(self, search, page=1, page_size=20):
+        return self._call("POST", "/Application/GetList", json={"page": page, "pageSize": page_size, "search": search})
 
     def household(self, household_id):
         # a'zolarning pasport seriyasi/raqami shu yerda bor (Application/Get da yo'q)

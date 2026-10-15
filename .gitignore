@@ -2,9 +2,13 @@
 .secret_key
 db.sqlite3
 media/
+tessdata/
 yozuvlar/
 .brauzer_profil/
 fuqarolar.json
+fuqarolar_royxati.json
+muammoli_royxati.json
+PDFs/
 *.pdf
 *.xlsx
 

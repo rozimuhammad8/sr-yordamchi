@@ -17,6 +17,10 @@
       <div class="brand-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></div>
       <div class="brand-text"><b>SR yordamchi</b><span>sr.ihma.uz · xonadon mahallasini o'zgartirish</span></div>
     </div>
+    <nav class="top-nav">
+      <a href="/" class="tab active" data-tab="bitta">Bitta fuqaro</a>
+      <a href="/ommaviy/" class="tab" data-tab="ommaviy">Ommaviy jo'natish</a>
+    </nav>
     <div class="topbar-right">
       <span id="pill" class="pill">tokenlar olinmagan</span>
       <div class="user-chip" id="userChip" hidden>
@@ -55,6 +59,7 @@
       <div class="field"><label for="token">Auth token (Bearer)</label><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="kengaytma qo'yadi"></div>
       <div class="field"><label for="cf">Cloudflare token (cf_clearance)</label><input id="cf" type="password" autocomplete="off" spellcheck="false" placeholder="kengaytma qo'yadi"></div>
       <div class="field"><label for="arizaId">Ariza ID</label><input id="arizaId" type="text" inputmode="numeric" placeholder="masalan 1234567"></div>
+      <div class="field"><label for="pinflQidir">yoki arizachi PINFL'i</label><input id="pinflQidir" type="text" inputmode="numeric" maxlength="14" placeholder="14 xonali PINFL"></div>
       <input id="ua" type="hidden">
     </div>
     <div class="card-actions">
@@ -66,10 +71,15 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         Arizani yuklash
       </button>
+      <button type="button" class="btn" id="btnPinfl">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        PINFL bo'yicha yuklash
+      </button>
       <label class="radio-opt"><input type="checkbox" id="showTokens"> Tokenlarni ko'rsatish</label>
     </div>
   </div>
 
+  <div id="tab-bitta" class="form-stack">
   <div class="card">
     <h3>Ariza</h3>
     <p class="sub">sr.ihma.uz dagi ma'lumotlar</p>
@@ -91,17 +101,13 @@
 
     <div class="card">
       <h3>Murojaat</h3>
-      <p class="sub">Xabar beruvchi pasport bo'yicha tekshiriladi — pasport sr.ihma.uz dan to'ladi</p>
+      <p class="sub">Xabar beruvchi — arizachi, pasporti sr.ihma.uz dan; murojaat sanasi — bugun</p>
       <div class="form-grid">
+        <div class="full"><div class="note" id="xabarInfo">Ariza yuklanganda xabar beruvchi avtomatik tanlanadi</div></div>
+        <div class="field" id="pasportBox1" hidden><label>Pasport seriyasi *</label><input type="text" name="pasport_seriya" maxlength="2" placeholder="AA" class="upper"></div>
+        <div class="field" id="pasportBox2" hidden><label>Pasport raqami *</label><input type="text" name="pasport_raqam" maxlength="7" inputmode="numeric" placeholder="1234567"></div>
         <div class="field"><label>O'zgartirish sababi *</label><select id="sabab" name="sabab_id"></select></div>
-        <div class="field"><label>Xabar beruvchi turi *</label><select id="turi" name="xabar_beruvchi_turi_id"></select></div>
-        <div class="field full"><label>Xabar beruvchi *</label><select id="xabarBeruvchi" name="xabar_beruvchi"></select></div>
-        <div class="field full" id="boshqaBox" hidden><label>Xabar beruvchining PINFL'i *</label><input type="text" name="boshqa_pinfl" maxlength="14" inputmode="numeric" placeholder="14 xonali PINFL"></div>
-        <div class="field"><label>Pasport seriyasi *</label><input type="text" name="pasport_seriya" maxlength="2" placeholder="AA" class="upper"></div>
-        <div class="field"><label>Pasport raqami *</label><input type="text" name="pasport_raqam" maxlength="7" inputmode="numeric" placeholder="1234567"></div>
-        <div class="full"><span class="hint-line" id="pasportNote"></span></div>
         <div class="field"><label>Telefon *</label><input type="text" name="telefon" id="telefon" placeholder="+998 90 123 45 67"></div>
-        <div class="field"><label>Murojaat sanasi *</label><input type="date" name="murojaat_sanasi" id="sana"></div>
         <div class="field full"><label>Izoh</label><textarea name="izoh" rows="3" placeholder="Masalan: Dalolatnoma bo'yicha fuqaro boshqa mahallada yashaydi"></textarea></div>
       </div>
     </div>
@@ -127,6 +133,45 @@
       </button>
     </div>
   </form>
+  </div>
+
+  <div id="tab-ommaviy" class="form-stack" hidden>
+    <div class="card">
+      <h3>Dalolatnomalar (ZIP)</h3>
+      <p class="sub">Dalolatnoma PDF'lari solingan ZIP'ni tanlang. Har bir PDF o'qiladi (OCR), ro'yxat avtomatik tuziladi, PDF fuqaro ismi bilan qayta nomlanadi va 1 MB dan kattasi siqiladi.</p>
+      <div class="docx-upload">
+        <button type="button" class="btn" id="omZipBtn">ZIP tanlash</button>
+        <input type="file" id="omZip" accept=".zip,application/zip" hidden>
+        <span class="docx-status" id="omZipInfo">ZIP tanlanmagan</span>
+      </div>
+      <div class="card-actions">
+        <button type="button" class="btn btn-primary" id="omYukla">ZIP'ni o'qish</button>
+        <a class="btn" id="omNatija" hidden download>Natijani yuklab olish (PDF + Excel)</a>
+        <button type="button" class="btn" id="omQidir">Arizalarni qidirish</button>
+        <span class="hint-line" id="omHolat"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Arizalar</h3>
+      <p class="sub">Murojaatchi — arizachi, pasport sr.ihma.uz dan; telefon, sana (dalolatnoma sanasi) va izoh avtomatik olinadi</p>
+      <div class="form-grid om-umumiy">
+        <div class="field"><label for="omSabab">O'zgartirish sababi *</label><select id="omSabab"></select></div>
+        <div class="field"><label for="omTuri">Xabar beruvchi turi *</label><select id="omTuri"></select></div>
+      </div>
+      <div class="om-table-wrap">
+        <table class="om-table">
+          <thead><tr><th>T/r</th><th>PINFL</th><th>Ariza ID</th><th>Yangi viloyat</th><th>Yangi tuman</th><th>Yangi mahalla</th><th>PDF</th><th></th></tr></thead>
+          <tbody id="omQatorlar"><tr><td colspan="8" class="empty">Excel'ni tanlab, "Ro'yxatni yuklash" ni bosing</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <div class="form-msg" id="omMsg"></div>
+      <button type="button" class="btn btn-primary" id="omSendAll">Hammasini yuborish</button>
+    </div>
+  </div>
 
   <div class="card card-flush">
     <div class="card-head">
@@ -160,5 +205,6 @@
 
 <div class="toast" id="toast"></div>
 <script src="{% static 'kiritish/app.js' %}"></script>
+<script src="{% static 'kiritish/ommaviy.js' %}"></script>
 </body>
 </html>

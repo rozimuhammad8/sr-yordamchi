@@ -12,3 +12,10 @@ playwright==1.63.0
 
 # build.py: fuqarolar ro'yxatidan Excel yaratish
 openpyxl==3.1.5
+
+# pdf_siqish.py: skaner PDF'larini 1 MB ga sig'adigan qilib siqish
+pillow==12.3.0
+pypdf==6.20.1
+
+# kiritish/dalolatnoma.py: skaner dalolatnomalarni o'qish (Tesseract OCR; ornatish.bat o'rnatadi)
+pytesseract==0.3.13

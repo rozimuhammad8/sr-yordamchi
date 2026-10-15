@@ -1,14 +1,26 @@
+import io
+import json
 import re
+import shutil
+import time
+import uuid
+import zipfile
 from datetime import date
 from functools import wraps
+from pathlib import Path
 
+from django.conf import settings
 from django.core.files.base import ContentFile
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
 
+from build import enrich, safe_filename, write_excel
+from pdf_siqish import siqish
+
+from . import dalolatnoma
 from .models import Yuborish
 from .sr_client import MAX_PDF_BYTES, SrClient, SrError
 
@@ -99,6 +111,168 @@ def ariza(request, ariza_id):
         "oldingi": {"sana": timezone.localtime(oldingi.yaratilgan).strftime("%d.%m.%Y %H:%M"), "ozgartirish_id": oldingi.ozgartirish_id}
         if oldingi else None,
     }
+
+
+def _royxat(data):
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        for k in ("items", "data", "list", "rows", "result", "results", "records"):
+            if k in data:
+                return _royxat(data[k])
+    return []
+
+
+@require_GET
+@api
+def ariza_qidir(request):
+    pinfl = request.GET.get("pinfl", "").strip()
+    if not re.fullmatch(r"\d{14}", pinfl):
+        raise ValueError("PINFL 14 ta raqam bo'lishi kerak")
+    natija = []
+    for x in _royxat(client(request).search_applications(pinfl)):
+        if not isinstance(x, dict) or not (x.get("id") or x.get("applicationId")):
+            continue
+        natija.append({
+            "id": x.get("id") or x.get("applicationId"),
+            "raqam": x.get("externalNo") or x.get("number") or "",
+            "arizachi": x.get("applicantName") or x.get("fullName") or "",
+            "pinfl": x.get("applicantPinFL") or x.get("pinfl") or x.get("pinFL") or "",
+            "holat": x.get("statusName") or x.get("status") or "",
+            "sana": str(x.get("createdOn") or x.get("createdAt") or x.get("submittedOn") or "")[:10],
+        })
+    return natija
+
+
+# ---------- ommaviy: ZIP (dalolatnoma PDF'lari) -> OCR -> ro'yxat ----------
+# media/zip/<id>/asl/NNN.pdf — ZIP'dagi asl fayllar; tayyor/<F.I.Sh>.pdf — to'g'rilangan, siqilgan, nomlangan;
+# NNN.json — o'qilgan ma'lumot. 7 kundan eski yuklamalar o'chiriladi.
+ZIP_MAX_PDF = 300
+
+
+def _zip_nomi(info):
+    nom = info.filename
+    if not info.flag_bits & 0x800:  # Windows "Сжатая папка" nomlarni cp866 da yozadi
+        try:
+            nom = nom.encode("cp437").decode("cp866")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            pass
+    return nom.replace("\\", "/").rsplit("/", 1)[-1]
+
+
+def _zip_papka(zid):
+    papka = Path(settings.MEDIA_ROOT) / "zip" / zid
+    if not re.fullmatch(r"[0-9a-f]{32}", zid) or not papka.is_dir():
+        raise ValueError("ZIP topilmadi — qaytadan yuklang")
+    return papka
+
+
+def _eskilarni_tozala():
+    ildiz = Path(settings.MEDIA_ROOT) / "zip"
+    for p in ildiz.glob("*") if ildiz.is_dir() else []:
+        if p.is_dir() and time.time() - p.stat().st_mtime > 7 * 86400:
+            shutil.rmtree(p, ignore_errors=True)
+
+
+@require_POST
+@api
+def zip_yukla(request):
+    f = request.FILES.get("zip")
+    if not f or not f.name.lower().endswith(".zip"):
+        raise ValueError("ZIP fayl tanlang")
+    _eskilarni_tozala()
+    zid = uuid.uuid4().hex
+    papka = Path(settings.MEDIA_ROOT) / "zip" / zid
+    (papka / "asl").mkdir(parents=True)
+    fayllar = []
+    try:
+        with zipfile.ZipFile(f) as z:
+            for info in z.infolist():
+                nom = _zip_nomi(info)
+                if (info.is_dir() or not nom.lower().endswith(".pdf") or nom.startswith("._")
+                        or "__MACOSX" in info.filename or info.file_size > 30 * 1024 * 1024):
+                    continue
+                n = len(fayllar)
+                (papka / "asl" / f"{n:03d}.pdf").write_bytes(z.read(info))
+                fayllar.append({"n": n, "nom": nom, "hajm": info.file_size})
+                if len(fayllar) >= ZIP_MAX_PDF:
+                    break
+    except zipfile.BadZipFile:
+        shutil.rmtree(papka, ignore_errors=True)
+        raise ValueError("ZIP fayl buzilgan yoki ZIP emas")
+    if not fayllar:
+        shutil.rmtree(papka, ignore_errors=True)
+        raise ValueError("ZIP ichida PDF topilmadi")
+    (papka / "fayllar.json").write_text(json.dumps(fayllar, ensure_ascii=False), encoding="utf-8")
+    return {"id": zid, "fayllar": fayllar}
+
+
+@require_POST
+@api
+def zip_oqi(request, zid, n):
+    papka = _zip_papka(zid)
+    fayllar = json.loads((papka / "fayllar.json").read_text(encoding="utf-8"))
+    fayl = next((x for x in fayllar if x["n"] == n), None)
+    if not fayl:
+        raise ValueError("PDF topilmadi")
+    data = (papka / "asl" / f"{n:03d}.pdf").read_bytes()
+    try:
+        r = dalolatnoma.oqish(data)
+    except dalolatnoma.OcrXato as e:
+        raise ValueError(str(e))
+    except Exception as e:  # buzilgan PDF — qator baribir chiqsin, qo'lda to'ldiriladi
+        r = {"fish": "", "burchaklar": [], "izoh": f"PDF o'qilmadi: {e}"}
+
+    # to'g'rilangan, 1 MB ga siqilgan PDF fuqaro ismi bilan
+    try:
+        pdf = siqish(dalolatnoma.tikla(data, r.get("burchaklar") or []))
+    except Exception:
+        pdf = data
+    tayyor = papka / "tayyor"
+    tayyor.mkdir(exist_ok=True)
+    asos = safe_filename(r.get("fish") or "") or Path(fayl["nom"]).stem
+    nom, k = f"{asos}.pdf", 2
+    while (tayyor / nom).exists():
+        nom, k = f"{asos} ({k}).pdf", k + 1
+    (tayyor / nom).write_bytes(pdf)
+
+    hoz = r.get("hozirgi_mahalla", "")
+    if hoz and r.get("hozirgi_tuman"):
+        hoz += f" ({r['hozirgi_tuman']})"
+    qator = {
+        "fish": r.get("fish", ""), "pinfl": r.get("pinfl", ""), "pasport": r.get("pasport", ""),
+        "tugilgan_sana": r.get("tugilgan_sana", ""), "dalolatnoma_sanasi": r.get("dalolatnoma_sanasi", ""),
+        "hozirgi_mahalla": hoz, "yangi_tuman": r.get("yangi_tuman", ""), "yangi_mahalla": r.get("yangi_mahalla", ""),
+        "yangi_manzil": ", ".join(x for x in (r.get("yangi_tuman"), r.get("yangi_mahalla"), r.get("yangi_kocha")) if x),
+        "telefon": r.get("telefon", ""), "izoh": r.get("izoh", ""), "muammo": "",
+        "asl_nom": fayl["nom"], "pdf": nom, "hajm": len(pdf),
+        "pdf_url": f"{settings.MEDIA_URL}zip/{zid}/tayyor/{nom}",
+    }
+    (papka / f"{n:03d}.json").write_text(json.dumps(qator, ensure_ascii=False), encoding="utf-8")
+    return qator
+
+
+@require_GET
+def zip_natija(request, zid):
+    """Qayta nomlangan PDF'lar + fuqarolar_royxati.xlsx — bitta ZIP."""
+    try:
+        papka = _zip_papka(zid)
+    except ValueError as e:
+        return JsonResponse({"xato": str(e)}, status=404)
+    qatorlar = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(papka.glob("[0-9][0-9][0-9].json"))]
+    for q in qatorlar:
+        q["pdf_joyi"] = q["pdf"]
+    enrich(qatorlar)
+    xlsx = io.BytesIO()
+    write_excel(xlsx, qatorlar)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("fuqarolar_royxati.xlsx", xlsx.getvalue())
+        for p in sorted((papka / "tayyor").glob("*.pdf")):
+            z.write(p, p.name)
+    javob = HttpResponse(buf.getvalue(), content_type="application/zip")
+    javob["Content-Disposition"] = f'attachment; filename="dalolatnomalar_{timezone.localtime():%d.%m.%Y_%H%M}.zip"'
+    return javob
 
 
 @require_GET
